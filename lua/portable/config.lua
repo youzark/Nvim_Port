@@ -54,8 +54,58 @@ function M.setup_clipboard()
     -- Don't override if already configured
     if vim.g.clipboard then return end
     
-    -- For remote/SSH without display, use internal clipboard only
-    if env.is_remote and not env.has_display then
+    -- Enhanced display detection for nested SSH, Docker, etc.
+    local function has_working_display()
+        -- Check multiple display indicators
+        local display_vars = {
+            os.getenv("DISPLAY"),
+            os.getenv("WAYLAND_DISPLAY"),
+            os.getenv("XDG_SESSION_TYPE")
+        }
+        
+        -- If no display environment variables, definitely no display
+        local has_display_env = false
+        for _, var in ipairs(display_vars) do
+            if var and var ~= "" then
+                has_display_env = true
+                break
+            end
+        end
+        
+        if not has_display_env then
+            return false
+        end
+        
+        -- Test if we can actually access the display
+        if os_type == "linux" then
+            -- Try a simple X11 test that won't hang
+            local result = vim.fn.system("timeout 2s xset q >/dev/null 2>&1")
+            if vim.v.shell_error == 0 then
+                return true
+            end
+            
+            -- Try Wayland test
+            if os.getenv("WAYLAND_DISPLAY") then
+                local result = vim.fn.system("timeout 2s wl-copy --version >/dev/null 2>&1")
+                if vim.v.shell_error == 0 then
+                    return true
+                end
+            end
+        end
+        
+        return false
+    end
+    
+    -- Check if we're in Docker, nested SSH, or other isolated environment
+    local function is_isolated_environment()
+        return (os.getenv("container") == "docker") or
+               (vim.fn.filereadable("/.dockerenv") == 1) or
+               (os.getenv("SSH_TTY") and not has_working_display()) or
+               (os.getenv("SSH_CONNECTION") and not has_working_display())
+    end
+    
+    -- Use internal clipboard for isolated environments
+    if is_isolated_environment() or (env.is_remote and not has_working_display()) then
         -- Use internal clipboard that works across nvim sessions via temp file
         local tmp_file = vim.fn.stdpath('cache') .. '/clipboard.txt'
         vim.g.clipboard = {
@@ -101,27 +151,45 @@ function M.setup_clipboard()
         return
     end
     
-    -- Platform-specific system clipboard integration
+    -- Platform-specific system clipboard integration with error handling
     if os_type == "linux" then
         if vim.fn.executable("xclip") == 1 then
             vim.g.clipboard = {
-                name = "xclip",
-                copy = { ["+"] = "xclip -i -selection clipboard", ["*"] = "xclip -i -selection clipboard" },
-                paste = { ["+"] = "xclip -o -selection clipboard", ["*"] = "xclip -o -selection clipboard" },
+                name = "xclip-safe",
+                copy = { 
+                    ["+"] = "timeout 3s xclip -i -selection clipboard 2>/dev/null || true", 
+                    ["*"] = "timeout 3s xclip -i -selection clipboard 2>/dev/null || true" 
+                },
+                paste = { 
+                    ["+"] = "timeout 3s xclip -o -selection clipboard 2>/dev/null || echo ''", 
+                    ["*"] = "timeout 3s xclip -o -selection clipboard 2>/dev/null || echo ''" 
+                },
                 cache_enabled = false,
             }
         elseif vim.fn.executable("wl-copy") == 1 then
             vim.g.clipboard = {
-                name = "wl-clipboard",
-                copy = { ["+"] = "wl-copy", ["*"] = "wl-copy" },
-                paste = { ["+"] = "wl-paste", ["*"] = "wl-paste" },
+                name = "wl-clipboard-safe",
+                copy = { 
+                    ["+"] = "timeout 3s wl-copy 2>/dev/null || true", 
+                    ["*"] = "timeout 3s wl-copy 2>/dev/null || true" 
+                },
+                paste = { 
+                    ["+"] = "timeout 3s wl-paste 2>/dev/null || echo ''", 
+                    ["*"] = "timeout 3s wl-paste 2>/dev/null || echo ''" 
+                },
                 cache_enabled = false,
             }
         elseif vim.fn.executable("xsel") == 1 then
             vim.g.clipboard = {
-                name = "xsel",
-                copy = { ["+"] = "xsel -ib", ["*"] = "xsel -ib" },
-                paste = { ["+"] = "xsel -ob", ["*"] = "xsel -ob" },
+                name = "xsel-safe",
+                copy = { 
+                    ["+"] = "timeout 3s xsel -ib 2>/dev/null || true", 
+                    ["*"] = "timeout 3s xsel -ib 2>/dev/null || true" 
+                },
+                paste = { 
+                    ["+"] = "timeout 3s xsel -ob 2>/dev/null || echo ''", 
+                    ["*"] = "timeout 3s xsel -ob 2>/dev/null || echo ''" 
+                },
                 cache_enabled = false,
             }
         end
