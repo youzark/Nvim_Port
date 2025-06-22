@@ -195,6 +195,21 @@ function M.setup()
         
     end, { desc = 'Show manual Python setup commands' })
     
+    -- AppImage diagnostics and fixes
+    vim.api.nvim_create_user_command('AppImageInfo', function()
+        local appimage_fix = require('portable.appimage_fix')
+        appimage_fix.show_info()
+    end, { desc = 'Show AppImage environment information' })
+    
+    vim.api.nvim_create_user_command('AppImageFix', function()
+        local appimage_fix = require('portable.appimage_fix')
+        if appimage_fix.is_appimage() then
+            appimage_fix.apply_fixes()
+        else
+            print("[APPIMAGE-FIX] Not running in AppImage environment")
+        end
+    end, { desc = 'Apply AppImage compatibility fixes' })
+    
     -- Tool manager commands
     vim.api.nvim_create_user_command('ToolInstall', function(opts)
         local tool = opts.args

@@ -12,6 +12,12 @@ local commands = require('portable.commands')
 function M.setup(opts)
     opts = opts or {}
     
+    -- Apply AppImage fixes first if needed
+    local appimage_fix = require('portable.appimage_fix')
+    if appimage_fix.is_appimage() then
+        appimage_fix.apply_fixes()
+    end
+    
     -- Get environment info
     local env = detect.environment()
     
@@ -20,6 +26,7 @@ function M.setup(opts)
         os = env.os,
         package_manager = env.package_manager,
         is_remote = env.is_remote,
+        is_appimage = appimage_fix.is_appimage(),
         enabled = true
     }
     
@@ -31,7 +38,8 @@ function M.setup(opts)
     config.setup_optimizations()
     commands.setup()
     
-    print("[PORTABLE] Cross-platform enhancements loaded for " .. env.os)
+    local appimage_note = appimage_fix.is_appimage() and " (AppImage)" or ""
+    print("[PORTABLE] Cross-platform enhancements loaded for " .. env.os .. appimage_note)
 end
 
 -- Export modules for direct access if needed
