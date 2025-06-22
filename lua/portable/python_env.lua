@@ -30,13 +30,28 @@ M.config = {
 
 -- Detect conda installation
 function M.detect_conda()
-    -- Check if conda is in PATH
+    -- Check if conda is in PATH first
     if vim.fn.executable("conda") == 1 then
         return vim.fn.exepath("conda")
     end
     
     -- Check common installation paths
-    for _, path in ipairs(M.config.conda_paths) do
+    local all_paths = vim.list_extend({}, M.config.conda_paths)
+    
+    -- Add more paths including newly installed location
+    local extra_paths = {
+        "~/miniconda3/condabin/conda",  -- New conda installations use condabin
+        "~/miniconda3/bin/conda",
+        "~/anaconda3/condabin/conda",
+        "~/anaconda3/bin/conda",
+        "/usr/local/miniconda3/condabin/conda",
+        "/opt/conda/condabin/conda",
+        "/opt/conda/bin/conda"
+    }
+    
+    vim.list_extend(all_paths, extra_paths)
+    
+    for _, path in ipairs(all_paths) do
         local expanded_path = vim.fn.expand(path)
         if vim.fn.executable(expanded_path) == 1 then
             return expanded_path
@@ -142,7 +157,7 @@ end
 
 -- Setup Python environment for nvim
 function M.setup()
-    print("[PYTHON-ENV] 🔍 Checking Python environment...")
+    print("[PYTHON-ENV] 🔍 Checking Python environment... (streamlined v2)")
     
     local conda_path = M.detect_conda()
     
@@ -311,12 +326,21 @@ function M.install_miniconda()
     local init_cmd = install_path .. "/bin/conda init"
     vim.fn.system(init_cmd .. " 2>/dev/null")
     
+    -- Also try to add to current session PATH
+    local conda_bin = install_path .. "/bin"
+    local conda_condabin = install_path .. "/condabin"
+    local current_path = vim.env.PATH or ""
+    
+    -- Update PATH for current session
+    if not current_path:match(conda_bin) then
+        vim.env.PATH = conda_condabin .. ":" .. conda_bin .. ":" .. current_path
+    end
+    
     -- Cleanup
     vim.fn.system("rm -f " .. script_path)
     
     local total_time = download_time + install_time
-    print(string.format("🎉 Miniconda installed successfully (%ds total)", total_time))
-    print("💡 Restart terminal or reload nvim to use conda")
+    print(string.format("✅ Miniconda installed successfully (%ds total)", total_time))
     
     return true
 end
