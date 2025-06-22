@@ -1,6 +1,21 @@
+-- Check if tree-sitter CLI is available
+local has_tree_sitter_cli = vim.fn.executable("tree-sitter") == 1
+
+-- Show helpful message if tree-sitter CLI is missing
+if not has_tree_sitter_cli then
+    vim.schedule(function()
+        vim.notify(
+            "tree-sitter CLI not found. Syntax highlighting will be limited.\n" ..
+            "Install with: :PortableInstall tools\n" ..
+            "Or manually: npm install -g tree-sitter-cli", 
+            vim.log.levels.WARN
+        )
+    end)
+end
+
 require('nvim-treesitter.configs').setup({
     -- A list of parser names, or "all"
-    ensure_installed = {
+    ensure_installed = has_tree_sitter_cli and {
         -- Languages you specifically use
         "bash", "python", "java", "c", "cpp", "rust", "markdown", "latex",
         
@@ -13,13 +28,14 @@ require('nvim-treesitter.configs').setup({
         
         -- Markdown related
         "markdown_inline", "bibtex",
-    },
+    } or {},
 
     -- Install parsers synchronously (only applied to `ensure_installed`)
     sync_install = false,
 
     -- Automatically install missing parsers when entering buffer
-    auto_install = true,
+    -- Only enable if tree-sitter CLI is available
+    auto_install = has_tree_sitter_cli,
 
     highlight = {
         enable = true,

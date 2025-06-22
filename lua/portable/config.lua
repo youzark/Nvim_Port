@@ -98,6 +98,28 @@ function M.setup_applications()
     end
 end
 
+-- Check and install tree-sitter if missing
+function M.setup_treesitter()
+    if vim.fn.executable("tree-sitter") == 0 then
+        -- Try to install via npm if available
+        if vim.fn.executable("npm") == 1 then
+            vim.schedule(function()
+                vim.notify("Installing tree-sitter CLI via npm...", vim.log.levels.INFO)
+                vim.fn.system("npm install -g tree-sitter-cli")
+                if vim.fn.executable("tree-sitter") == 1 then
+                    vim.notify("tree-sitter CLI installed successfully!", vim.log.levels.INFO)
+                else
+                    vim.notify("tree-sitter CLI installation failed. Run :PortableInstall tools", vim.log.levels.WARN)
+                end
+            end)
+        else
+            vim.schedule(function()
+                vim.notify("tree-sitter CLI missing. Install nodejs/npm first, then run :PortableInstall tools", vim.log.levels.WARN)
+            end)
+        end
+    end
+end
+
 -- Environment-specific optimizations
 function M.setup_optimizations()
     local env = detect.environment()

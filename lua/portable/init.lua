@@ -27,6 +27,7 @@ function M.setup(opts)
     config.setup_python()
     config.setup_clipboard()
     config.setup_applications()
+    config.setup_treesitter()
     config.setup_optimizations()
     commands.setup()
     

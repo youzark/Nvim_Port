@@ -6,7 +6,7 @@ local M = {}
 M.dependencies = {
     core = {"git", "curl", "unzip", "make"},
     languages = {"python3", "node", "gcc"},
-    tools = {"fzf", "rg", "fd"},
+    tools = {"fzf", "rg", "fd", "tree-sitter"},
     optional = {"ranger", "latex", "flameshot"}
 }
 
@@ -39,11 +39,11 @@ M.install_commands = {
         brew = "brew install python3 node",
     },
     tools = {
-        apt = "sudo apt install -y fzf ripgrep fd-find",
-        yum = "sudo yum install -y fzf ripgrep fd-find",
-        dnf = "sudo dnf install -y fzf ripgrep fd-find",
-        pacman = "sudo pacman -S --noconfirm fzf ripgrep fd",
-        brew = "brew install fzf ripgrep fd",
+        apt = "sudo apt install -y fzf ripgrep fd-find && npm install -g tree-sitter-cli",
+        yum = "sudo yum install -y fzf ripgrep fd-find && npm install -g tree-sitter-cli",
+        dnf = "sudo dnf install -y fzf ripgrep fd-find && npm install -g tree-sitter-cli",
+        pacman = "sudo pacman -S --noconfirm fzf ripgrep fd tree-sitter-cli",
+        brew = "brew install fzf ripgrep fd tree-sitter",
     },
     optional = {
         apt = "sudo apt install -y ranger texlive-full flameshot",
