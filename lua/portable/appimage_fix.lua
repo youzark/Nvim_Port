@@ -79,30 +79,37 @@ function M.fix_health_functions()
         end
     end
     
-    -- Also check for legacy health functions
+    -- Also check for legacy health functions - use safer approach
     if vim.fn.exists('*health#report_start') == 0 then
-        -- Create legacy health functions if they don't exist
+        -- Create wrapper functions instead of direct health# functions
         vim.cmd([[
-            function! health#report_start(name)
+            function! HealthReportStart(name)
                 echo "== " . a:name . " =="
             endfunction
             
-            function! health#report_ok(msg)
+            function! HealthReportOk(msg)
                 echo "  - OK: " . a:msg
             endfunction
             
-            function! health#report_warn(msg)
+            function! HealthReportWarn(msg)
                 echo "  - WARNING: " . a:msg
             endfunction
             
-            function! health#report_error(msg)
+            function! HealthReportError(msg)
                 echo "  - ERROR: " . a:msg
             endfunction
             
-            function! health#report_info(msg)
+            function! HealthReportInfo(msg)
                 echo "  - INFO: " . a:msg
             endfunction
         ]])
+        
+        -- Create aliases that plugins might expect
+        pcall(vim.cmd, 'command! -nargs=1 HealthStart call HealthReportStart(<args>)')
+        pcall(vim.cmd, 'command! -nargs=1 HealthOk call HealthReportOk(<args>)')
+        pcall(vim.cmd, 'command! -nargs=1 HealthWarn call HealthReportWarn(<args>)')
+        pcall(vim.cmd, 'command! -nargs=1 HealthError call HealthReportError(<args>)')
+        pcall(vim.cmd, 'command! -nargs=1 HealthInfo call HealthReportInfo(<args>)')
     end
 end
 
