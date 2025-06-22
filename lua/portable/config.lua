@@ -42,13 +42,66 @@ function M.setup_python()
     end
 end
 
--- Cross-platform clipboard
+-- Cross-platform clipboard with unified register behavior
 function M.setup_clipboard()
+    local env = detect.environment()
+    local os_type = env.os
+    
+    -- Always set clipboard to unnamed and unnamedplus for unified behavior
+    -- This makes yank/delete operations automatically use system clipboard
+    vim.opt.clipboard = "unnamed,unnamedplus"
+    
     -- Don't override if already configured
     if vim.g.clipboard then return end
     
-    local os_type = detect.os()
+    -- For remote/SSH without display, use internal clipboard only
+    if env.is_remote and not env.has_display then
+        -- Use internal clipboard that works across nvim sessions via temp file
+        local tmp_file = vim.fn.stdpath('cache') .. '/clipboard.txt'
+        vim.g.clipboard = {
+            name = "internal-file",
+            copy = {
+                ["+"] = function(lines) 
+                    local file = io.open(tmp_file, 'w')
+                    if file then
+                        file:write(table.concat(lines, '\n'))
+                        file:close()
+                    end
+                end,
+                ["*"] = function(lines)
+                    local file = io.open(tmp_file, 'w')
+                    if file then
+                        file:write(table.concat(lines, '\n'))
+                        file:close()
+                    end
+                end
+            },
+            paste = {
+                ["+"] = function()
+                    local file = io.open(tmp_file, 'r')
+                    if file then
+                        local content = file:read('*all')
+                        file:close()
+                        return vim.split(content, '\n', {plain = true})
+                    end
+                    return {}
+                end,
+                ["*"] = function()
+                    local file = io.open(tmp_file, 'r')
+                    if file then
+                        local content = file:read('*all')
+                        file:close()
+                        return vim.split(content, '\n', {plain = true})
+                    end
+                    return {}
+                end
+            },
+            cache_enabled = false,
+        }
+        return
+    end
     
+    -- Platform-specific system clipboard integration
     if os_type == "linux" then
         if vim.fn.executable("xclip") == 1 then
             vim.g.clipboard = {
@@ -62,6 +115,13 @@ function M.setup_clipboard()
                 name = "wl-clipboard",
                 copy = { ["+"] = "wl-copy", ["*"] = "wl-copy" },
                 paste = { ["+"] = "wl-paste", ["*"] = "wl-paste" },
+                cache_enabled = false,
+            }
+        elseif vim.fn.executable("xsel") == 1 then
+            vim.g.clipboard = {
+                name = "xsel",
+                copy = { ["+"] = "xsel -ib", ["*"] = "xsel -ib" },
+                paste = { ["+"] = "xsel -ob", ["*"] = "xsel -ob" },
                 cache_enabled = false,
             }
         end
