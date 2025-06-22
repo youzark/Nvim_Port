@@ -1,0 +1,7 @@
+vim.cmd("colorscheme gruvbox")
+vim.cmd("iabbrev teh the")
+vim.cmd("iabbrev adn and")
+vim.cmd("iabbrev waht what ")
+vim.cmd("iabbrev funciton function")
+vim.cmd("filetype plugin indent on")
+vim.cmd("highlight link RnvimrNormal CursorLine")

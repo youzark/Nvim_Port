@@ -1,0 +1,36 @@
+require("youzark")
+-- local deps = require("init_dependency")
+
+-- Create command to install dependencies
+-- vim.api.nvim_create_user_command("InstallDep", function(args)
+--     local dep_name = args.args
+--     if dep_name == "" then
+--         -- Show available installers if no argument provided
+--         local available = {}
+--         for name, installer in pairs(deps.installers) do
+--             table.insert(available, name .. ": " .. installer.description)
+--         end
+--         vim.ui.select(available, { prompt = "Select dependency to install:" }, function(choice)
+--             if choice then
+--                 local selected = choice:match("^([^:]+):")
+--                 deps.install(selected)
+--             end
+--         end)
+--     else
+--         deps.install(dep_name)
+--     end
+-- end, {
+--     nargs = "?",
+--     complete = function()
+--         local names = {}
+--         for name, _ in pairs(deps.installers) do
+--             table.insert(names, name)
+--         end
+--         return names
+--     end
+-- })
+--
+-- -- Command to fix all dependencies
+-- vim.api.nvim_create_user_command("FixDeps", function()
+--     deps.fix_all()
+-- end, {})
