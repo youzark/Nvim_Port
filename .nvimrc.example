@@ -1,0 +1,120 @@
+# Neovim Environment Configuration Template
+# Copy this file to ~/.nvimrc or set these environment variables in your shell
+
+# =============================================================================
+# PATH CONFIGURATION
+# =============================================================================
+
+# Root directory for all nvim-related installations (default: ~/.config/nvim)
+# export NVIM_ROOT="$HOME/.config/nvim"
+
+# Directory for nvim-managed binaries (default: ~/.local/bin)
+# export NVIM_BIN_DIR="$HOME/.local/bin"
+
+# Directory for nvim tools and dependencies (default: ~/.local/nvim-tools)
+# export NVIM_TOOLS_DIR="$HOME/.local/nvim-tools"
+
+# Python virtual environment for nvim (default: ~/.local/nvim-venv)
+# export NVIM_PYTHON_VENV="$HOME/.local/nvim-venv"
+
+# Node.js modules directory for nvim (default: ~/.local/nvim-node)
+# export NVIM_NODE_MODULES="$HOME/.local/nvim-node"
+
+# C++ debugging tools directory (default: ~/.local/cpptools)
+# export NVIM_CPP_TOOLS="$HOME/.local/cpptools"
+
+# =============================================================================
+# API KEYS
+# =============================================================================
+
+# AI Services (uncomment and set as needed)
+# export DEEPSEEK_API="your_deepseek_api_key_here"
+# export GEMINI_API="your_gemini_api_key_here"
+# export ROUTER_API="your_openrouter_api_key_here"
+# export OPENAI_API_KEY="your_openai_api_key_here"
+# export ANTHROPIC_API_KEY="your_anthropic_api_key_here"
+
+# =============================================================================
+# NETWORK CONFIGURATION
+# =============================================================================
+
+# Enable HTTP proxy (default: false)
+# export NVIM_PROXY_ENABLED="true"
+# export NVIM_PROXY_HOST="127.0.0.1"
+# export NVIM_PROXY_PORT="7890"
+
+# Network timeout in seconds (default: 30)
+# export NVIM_TIMEOUT="30"
+
+# =============================================================================
+# APPLICATION PREFERENCES
+# =============================================================================
+
+# Default browser (auto-detected if not set)
+# Linux: firefox, chromium, brave-browser
+# macOS: safari, firefox, chrome
+# export NVIM_BROWSER="firefox"
+
+# PDF viewer (auto-detected if not set)  
+# Linux: zathura, evince, okular
+# macOS: skim, preview
+# export NVIM_PDF_VIEWER="zathura"
+
+# Terminal emulator (auto-detected if not set)
+# Linux: kitty, alacritty, gnome-terminal
+# macOS: iterm2, terminal, kitty
+# export NVIM_TERMINAL="kitty"
+
+# File manager (default: ranger)
+# export NVIM_FILE_MANAGER="ranger"
+
+# =============================================================================
+# FEATURE TOGGLES
+# =============================================================================
+
+# Auto-install missing dependencies (default: true)
+# export NVIM_AUTO_INSTALL="true"
+
+# Use system clipboard integration (default: true)
+# export NVIM_SYSTEM_CLIPBOARD="true"
+
+# Enable remote development features (default: false)
+# export NVIM_REMOTE_DEV="false"
+
+# Enable Jupyter notebook integration (default: true)
+# export NVIM_JUPYTER="true"
+
+# Enable LaTeX support (default: true)
+# export NVIM_LATEX="true"
+
+# Enable C++ debugging support (default: true)
+# export NVIM_CPP_DEBUG="true"
+
+# =============================================================================
+# QUICK SETUP FOR DIFFERENT ENVIRONMENTS
+# =============================================================================
+
+# For a minimal setup (disable heavy features):
+# export NVIM_LATEX="false"
+# export NVIM_CPP_DEBUG="false"
+# export NVIM_JUPYTER="false"
+
+# For remote server setup:
+# export NVIM_REMOTE_DEV="true"
+# export NVIM_SYSTEM_CLIPBOARD="false"  # if no X11/Wayland
+# export NVIM_AUTO_INSTALL="true"
+
+# For offline development:
+# export NVIM_PROXY_ENABLED="false"
+# export NVIM_AUTO_INSTALL="false"  # prevent network calls
+
+# =============================================================================
+# EXAMPLE USAGE
+# =============================================================================
+
+# 1. Copy this file to ~/.nvimrc
+# 2. Uncomment and modify the variables you want to change
+# 3. Source the file: source ~/.nvimrc
+# 4. Start nvim - it will automatically use these settings
+
+# Alternative: Export variables in your shell profile (.bashrc, .zshrc, etc.)

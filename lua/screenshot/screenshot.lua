@@ -1,24 +1,68 @@
 #!/usr/bin/env lua
 local M = {}
 
+-- Get environment config
+local env_config = _G.nvim_env or {}
+
 local function createImgDirIfNotExist(baseDir)
     if baseDir ~= "" then
         if vim.fn.finddir("img",baseDir) == "" then
-            os.execute("mkdir " .. baseDir .. "/img")
+            -- Use cross-platform directory creation
+            vim.fn.mkdir(baseDir .. "/img", "p")
         end
         return baseDir .. "/img"
     end
+end
+
+-- Cross-platform screenshot function
+local function getScreenshotCommand(outputPath)
+    local os_type = (env_config.os) or vim.loop.os_uname().sysname:lower()
+    
+    if os_type:find("linux") then
+        -- Try different screenshot tools in order of preference
+        if vim.fn.executable("flameshot") == 1 then
+            return string.format("flameshot gui --path %s", vim.fn.shellescape(outputPath))
+        elseif vim.fn.executable("gnome-screenshot") == 1 then
+            return string.format("gnome-screenshot -a -f %s", vim.fn.shellescape(outputPath))
+        elseif vim.fn.executable("scrot") == 1 then
+            return string.format("scrot -s %s", vim.fn.shellescape(outputPath))
+        elseif vim.fn.executable("maim") == 1 then
+            return string.format("maim -s %s", vim.fn.shellescape(outputPath))
+        end
+    elseif os_type:find("darwin") then
+        -- macOS screenshot
+        return string.format("screencapture -i %s", vim.fn.shellescape(outputPath))
+    elseif os_type:find("windows") then
+        -- Windows - note: this is limited, might need additional tools
+        return string.format("snippingtool /clip")
+    end
+    
+    return nil
 end
 
 M.takeScreenShot = function (fileName)
     if fileName == nil or fileName == "" then
         fileName = vim.fn.strftime("Y%y_M%m_D%d_H%H_M%M")
     end
+    
     local imgBaseDir = createImgDirIfNotExist(vim.fn.getcwd())
     if imgBaseDir ~= nil then
-        local command = "flameshot gui --path " ..imgBaseDir .. "/" ..fileName
-        vim.fn.system(command)
-        return fileName .. ".png"
+        local fullPath = imgBaseDir .. "/" .. fileName .. ".png"
+        local command = getScreenshotCommand(fullPath)
+        
+        if command then
+            vim.fn.system(command)
+            -- Check if file was created
+            if vim.fn.filereadable(fullPath) == 1 then
+                return fileName .. ".png"
+            else
+                vim.notify("Screenshot may not have been saved", vim.log.levels.WARN)
+                return fileName .. ".png"
+            end
+        else
+            vim.notify("No screenshot tool available. Please install flameshot, gnome-screenshot, scrot, or maim", vim.log.levels.ERROR)
+            return nil
+        end
     end
 end
 
