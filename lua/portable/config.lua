@@ -9,7 +9,18 @@ function M.setup_python()
         return
     end
     
-    -- Try to find python
+    -- Try miniconda nvim environment first
+    local python_env = require('portable.python_env')
+    local conda_path = python_env.detect_conda()
+    if conda_path and python_env.env_exists(conda_path) then
+        local nvim_python = python_env.get_python_path(conda_path)
+        if nvim_python then
+            vim.g.python3_host_prog = nvim_python
+            return
+        end
+    end
+    
+    -- Fallback to system python
     local python_candidates = {"python3", "python"}
     for _, cmd in ipairs(python_candidates) do
         local path = vim.fn.exepath(cmd)
