@@ -83,6 +83,118 @@ function M.setup()
         python_env.install_miniconda()
     end, { desc = 'Install miniconda automatically' })
     
+    -- Interactive Python setup guide
+    vim.api.nvim_create_user_command('PythonSetupGuide', function()
+        local python_env = require('portable.python_env')
+        
+        print("🐍 PYTHON SETUP GUIDE")
+        print("═" .. string.rep("═", 60))
+        
+        -- Check current state
+        local conda_path = python_env.detect_conda()
+        local has_conda = conda_path ~= nil
+        local has_env = has_conda and python_env.env_exists(conda_path)
+        local python_configured = vim.g.python3_host_prog ~= nil
+        
+        print("📊 Current Status:")
+        print("   🐍 Conda: " .. (has_conda and "✅ Found" or "❌ Not found"))
+        if has_conda then
+            print("      📁 Path: " .. conda_path)
+        end
+        print("   🏠 Nvim Environment: " .. (has_env and "✅ Exists" or "❌ Missing"))
+        print("   ⚙️  Python Host: " .. (python_configured and "✅ Configured" or "❌ Not configured"))
+        print("")
+        
+        -- Provide recommendations
+        print("💡 RECOMMENDATIONS:")
+        print("═" .. string.rep("═", 60))
+        
+        if not has_conda then
+            print("1️⃣  INSTALL CONDA (Required)")
+            print("   🚀 Quick install: :InstallMiniconda")
+            print("   📖 Manual install: See commands below")
+            print("")
+        end
+        
+        if has_conda and not has_env then
+            print("2️⃣  CREATE PYTHON ENVIRONMENT")
+            print("   🎯 Run: :PythonEnvSetup")
+            print("   📦 Will create 'nvim' environment with all packages")
+            print("")
+        end
+        
+        if has_conda and has_env and not python_configured then
+            print("3️⃣  CONFIGURE NVIM")
+            print("   ⚙️  Run: :PythonEnvSetup")
+            print("   🔗 Will set Python host for nvim")
+            print("")
+        end
+        
+        if has_conda and has_env and python_configured then
+            print("✅ SETUP COMPLETE!")
+            print("   🎉 Your Python environment is ready")
+            print("   📊 Status: :PythonEnvStatus")
+            print("")
+        end
+        
+        -- Quick actions
+        print("🚀 QUICK ACTIONS:")
+        print("═" .. string.rep("═", 60))
+        if not has_conda then
+            print("   :InstallMiniconda      - Auto-install conda")
+            print("   :PythonSetupManual     - Manual installation commands")
+        else
+            print("   :PythonEnvSetup        - Setup/update environment")
+            print("   :PythonEnvStatus       - Check detailed status")
+        end
+        print("   :PortableInstall python - Complete Python setup")
+        print("")
+        
+    end, { desc = 'Interactive Python setup guide' })
+    
+    -- Manual installation commands
+    vim.api.nvim_create_user_command('PythonSetupManual', function()
+        local os_type = require('portable.detect').os()
+        
+        print("📖 MANUAL PYTHON SETUP COMMANDS")
+        print("═" .. string.rep("═", 60))
+        
+        if os_type == "linux" then
+            print("🐧 LINUX INSTALLATION:")
+            print("   # Option 1: Download and install miniconda")
+            print("   curl -L https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -o ~/miniconda.sh")
+            print("   bash ~/miniconda.sh -b -p ~/miniconda3")
+            print("   ~/miniconda3/bin/conda init")
+            print("")
+            print("   # Option 2: Package manager (if available)")
+            print("   sudo apt install conda          # Ubuntu/Debian")
+            print("   sudo pacman -S miniconda3       # Arch Linux") 
+            print("   sudo yum install conda          # RHEL/CentOS")
+            
+        elseif os_type == "macos" then
+            print("🍎 MACOS INSTALLATION:")
+            print("   # Option 1: Download and install miniconda")
+            print("   curl -L https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh -o ~/miniconda.sh")
+            print("   bash ~/miniconda.sh -b -p ~/miniconda3")
+            print("   ~/miniconda3/bin/conda init")
+            print("")
+            print("   # Option 2: Homebrew")
+            print("   brew install miniconda")
+            
+        else
+            print("🪟 WINDOWS INSTALLATION:")
+            print("   Download installer from: https://docs.conda.io/en/latest/miniconda.html")
+            print("   Run the .exe installer and follow instructions")
+        end
+        
+        print("")
+        print("🔄 AFTER INSTALLATION:")
+        print("   1. Restart your terminal or run: source ~/.bashrc")
+        print("   2. Run: :PythonEnvSetup")
+        print("   3. Verify: conda --version")
+        
+    end, { desc = 'Show manual Python setup commands' })
+    
     -- Tool manager commands
     vim.api.nvim_create_user_command('ToolInstall', function(opts)
         local tool = opts.args

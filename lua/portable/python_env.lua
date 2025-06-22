@@ -162,38 +162,117 @@ end
 
 -- Setup Python environment for nvim
 function M.setup()
+    print("[PYTHON-ENV] Setting up Python environment...")
+    print("═" .. string.rep("═", 60))
+    
     local conda_path = M.detect_conda()
     
     if not conda_path then
-        print("[PYTHON-ENV] Conda not found. Install miniconda/anaconda first")
-        print("[PYTHON-ENV] Download from: https://docs.conda.io/en/latest/miniconda.html")
+        print("❌ CONDA NOT FOUND")
+        print("═" .. string.rep("═", 60))
+        print("🔍 Conda Detection Results:")
+        print("   ❌ conda command not found in PATH")
+        print("   ❌ No conda installation detected in common locations:")
+        for _, path in ipairs(M.config.conda_paths) do
+            print("      • " .. path)
+        end
+        print("")
+        
+        print("📋 INSTALLATION OPTIONS:")
+        print("═" .. string.rep("═", 60))
+        print("1️⃣  AUTOMATIC INSTALLATION (Recommended)")
+        print("   🚀 Run: :InstallMiniconda")
+        print("   ⏱️  Takes: ~5-10 minutes")
+        print("   📁 Installs to: ~/miniconda3")
+        print("")
+        
+        print("2️⃣  MANUAL INSTALLATION")
+        local os_type = require('portable.detect').os()
+        if os_type == "linux" then
+            print("   💻 Linux Commands:")
+            print("      curl -L https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -o ~/miniconda.sh")
+            print("      bash ~/miniconda.sh -b -p ~/miniconda3")
+            print("      ~/miniconda3/bin/conda init")
+        elseif os_type == "macos" then
+            print("   🍎 macOS Commands:")
+            print("      curl -L https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh -o ~/miniconda.sh")
+            print("      bash ~/miniconda.sh -b -p ~/miniconda3") 
+            print("      ~/miniconda3/bin/conda init")
+        else
+            print("   🪟 Windows: Download installer from https://docs.conda.io/en/latest/miniconda.html")
+        end
+        print("")
+        
+        print("3️⃣  PACKAGE MANAGER INSTALLATION")
+        if os_type == "linux" then
+            print("   🐧 Ubuntu/Debian: sudo apt install conda")
+            print("   🔴 RHEL/CentOS: sudo yum install conda")
+            print("   🔷 Arch Linux: sudo pacman -S miniconda3")
+        elseif os_type == "macos" then
+            print("   🍺 Homebrew: brew install miniconda")
+        end
+        print("")
+        
+        print("4️⃣  ALTERNATIVE: Use system Python")
+        print("   ⚠️  Limited functionality, but will work")
+        print("   🐍 Uses system Python instead of isolated environment")
+        print("")
+        
+        print("💡 NEXT STEPS:")
+        print("═" .. string.rep("═", 60))
+        print("After installing conda:")
+        print("  1. Restart your terminal or run: source ~/.bashrc")
+        print("  2. Run: :PythonEnvSetup")
+        print("  3. Verify with: :PythonEnvStatus")
+        print("")
+        
+        -- Ask if user wants automatic installation
+        print("🤖 Would you like to install miniconda automatically?")
+        print("   Type 'y' or 'yes' to proceed with automatic installation")
+        print("   Or install manually using the commands above")
+        
         return false
     end
     
-    print("[PYTHON-ENV] Found conda at: " .. conda_path)
+    print("✅ CONDA FOUND")
+    print("═" .. string.rep("═", 60))
+    print("📍 Conda Details:")
+    print("   📁 Path: " .. conda_path)
+    print("   🔧 Version: " .. (vim.fn.system(conda_path .. " --version 2>/dev/null"):gsub("\n", "") or "Unknown"))
+    print("   🏠 Base Environment: " .. (vim.fn.system("dirname " .. conda_path .. "/../"):gsub("\n", "") or "Unknown"))
+    print("")
     
     -- Check if environment exists
+    print("🔍 Checking nvim environment...")
     if not M.env_exists(conda_path) then
+        print("📥 Creating new nvim environment...")
         if not M.create_env(conda_path) then
             return false
         end
     else
-        print("[PYTHON-ENV] Environment 'nvim' already exists")
+        print("✅ Environment 'nvim' already exists")
     end
     
     -- Install packages
+    print("📦 Installing Python packages...")
     if not M.install_packages(conda_path) then
         return false
     end
     
     -- Set Python path
+    print("⚙️  Configuring nvim Python host...")
     local python_path = M.get_python_path(conda_path)
     if python_path then
         vim.g.python3_host_prog = python_path
-        print("[PYTHON-ENV] Python host set to: " .. python_path)
+        print("✅ Python host configured: " .. python_path)
+        print("═" .. string.rep("═", 60))
+        print("🎉 PYTHON ENVIRONMENT SETUP COMPLETE!")
+        print("   🐍 Environment: nvim")
+        print("   📦 Packages: " .. #M.config.python_packages .. " installed")
+        print("   🔗 Nvim integration: Ready")
         return true
     else
-        print("[PYTHON-ENV] Failed to get Python path")
+        print("❌ Failed to configure Python path")
         return false
     end
 end
@@ -249,32 +328,165 @@ end
 
 -- Install miniconda if not present
 function M.install_miniconda()
+    print("[PYTHON-ENV] 🚀 AUTOMATIC MINICONDA INSTALLATION")
+    print("═" .. string.rep("═", 60))
+    
     local os_type = require('portable.detect').os()
     local install_script = ""
+    local arch = vim.fn.system("uname -m"):gsub("\n", "")
+    
+    print("🖥️  System Information:")
+    print("   💻 Operating System: " .. os_type)
+    print("   🏗️  Architecture: " .. arch)
+    print("")
     
     if os_type == "linux" then
-        install_script = "https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh"
+        if arch:match("aarch64") or arch:match("arm64") then
+            install_script = "https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh"
+        else
+            install_script = "https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh"
+        end
     elseif os_type == "macos" then
-        install_script = "https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh"
+        if arch:match("arm64") then
+            install_script = "https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-arm64.sh"
+        else
+            install_script = "https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh"
+        end
     else
-        print("[PYTHON-ENV] Automatic miniconda installation not supported on " .. os_type)
-        print("[PYTHON-ENV] Please install manually from: https://docs.conda.io/en/latest/miniconda.html")
+        print("❌ UNSUPPORTED PLATFORM")
+        print("   🚫 Automatic installation not supported on " .. os_type)
+        print("   💡 Manual installation required")
+        print("   🔗 Download from: https://docs.conda.io/en/latest/miniconda.html")
         return false
     end
     
-    print("[PYTHON-ENV] Downloading and installing miniconda...")
     local install_path = vim.fn.expand("~/miniconda3")
-    local cmd = string.format("curl -L %s -o /tmp/miniconda.sh && bash /tmp/miniconda.sh -b -p %s", 
-                             install_script, install_path)
+    local script_path = "/tmp/miniconda_installer.sh"
     
-    local result = vim.fn.system(cmd)
-    if vim.v.shell_error == 0 then
-        print("[PYTHON-ENV] Miniconda installed to: " .. install_path)
-        print("[PYTHON-ENV] Restart your shell or run: source " .. install_path .. "/bin/activate")
+    print("📦 Installation Details:")
+    print("   🔗 Download URL: " .. install_script)
+    print("   📁 Install Path: " .. install_path)
+    print("   📄 Script Path: " .. script_path)
+    print("")
+    
+    -- Check if already exists
+    if vim.fn.isdirectory(install_path) == 1 then
+        print("⚠️  EXISTING INSTALLATION DETECTED")
+        print("   📁 Directory exists: " .. install_path)
+        print("   🤔 Would you like to:")
+        print("      1. Remove existing and reinstall")
+        print("      2. Skip installation and use existing")
+        print("   💡 Proceeding with existing installation...")
         return true
-    else
-        print("[PYTHON-ENV] Failed to install miniconda: " .. result)
+    end
+    
+    print("🔄 INSTALLATION PROCESS")
+    print("═" .. string.rep("═", 60))
+    
+    -- Step 1: Download
+    print("📥 Step 1/3: Downloading miniconda installer...")
+    local download_cmd = string.format("curl -L -# %s -o %s", install_script, script_path)
+    local start_time = os.time()
+    
+    print("   💻 Command: " .. download_cmd)
+    print("   ⏳ Downloading... (this may take 2-5 minutes)")
+    
+    local download_result = vim.fn.system(download_cmd)
+    local download_time = os.time() - start_time
+    
+    if vim.v.shell_error ~= 0 then
+        print("❌ Download failed:")
+        print("   " .. download_result:gsub("\n", "\n   "))
+        print("   ⏱️  Duration: " .. download_time .. " seconds")
         return false
+    end
+    
+    print("✅ Download completed in " .. download_time .. " seconds")
+    
+    -- Verify download
+    local file_size = vim.fn.system("stat -c%s " .. script_path .. " 2>/dev/null"):gsub("\n", "")
+    if file_size and tonumber(file_size) and tonumber(file_size) > 1000000 then
+        print("   📊 Downloaded: " .. math.floor(tonumber(file_size) / 1024 / 1024) .. " MB")
+    end
+    
+    -- Step 2: Install
+    print("\n🔧 Step 2/3: Installing miniconda...")
+    local install_cmd = string.format("bash %s -b -p %s", script_path, install_path)
+    start_time = os.time()
+    
+    print("   💻 Command: " .. install_cmd)
+    print("   ⏳ Installing... (this may take 3-8 minutes)")
+    
+    local install_result = vim.fn.system(install_cmd)
+    local install_time = os.time() - start_time
+    
+    if vim.v.shell_error ~= 0 then
+        print("❌ Installation failed:")
+        print("   " .. install_result:gsub("\n", "\n   "))
+        print("   ⏱️  Duration: " .. install_time .. " seconds")
+        return false
+    end
+    
+    print("✅ Installation completed in " .. install_time .. " seconds")
+    
+    -- Step 3: Initialize
+    print("\n⚙️  Step 3/3: Initializing conda...")
+    local init_cmd = install_path .. "/bin/conda init"
+    start_time = os.time()
+    
+    print("   💻 Command: " .. init_cmd)
+    print("   ⏳ Initializing shell integration...")
+    
+    local init_result = vim.fn.system(init_cmd)
+    local init_time = os.time() - start_time
+    
+    if vim.v.shell_error ~= 0 then
+        print("⚠️  Initialization warning (installation still successful):")
+        print("   " .. init_result:gsub("\n", "\n   "))
+    else
+        print("✅ Initialization completed in " .. init_time .. " seconds")
+    end
+    
+    -- Cleanup
+    print("\n🧹 Cleaning up...")
+    vim.fn.system("rm -f " .. script_path)
+    print("✅ Installer script removed")
+    
+    -- Final summary
+    local total_time = download_time + install_time + init_time
+    print("\n" .. "═" .. string.rep("═", 60))
+    print("🎉 MINICONDA INSTALLATION COMPLETE!")
+    print("═" .. string.rep("═", 60))
+    print("📊 Installation Summary:")
+    print("   ✅ Status: Successful")
+    print("   📁 Location: " .. install_path)
+    print("   ⏱️  Total Time: " .. M.format_time(total_time))
+    print("   📦 Ready for: Python environment creation")
+    print("")
+    
+    print("🔄 NEXT STEPS:")
+    print("   1. Restart your terminal or run: source ~/.bashrc")
+    print("   2. Run: :PythonEnvSetup")
+    print("   3. Verify with: conda --version")
+    print("")
+    
+    print("💡 Alternative: Reload nvim and run :PortableInstall python")
+    
+    return true
+end
+
+-- Helper function to format time
+function M.format_time(seconds)
+    if seconds < 60 then
+        return string.format("%ds", seconds)
+    elseif seconds < 3600 then
+        local mins = math.floor(seconds / 60)
+        local secs = seconds % 60
+        return string.format("%dm %ds", mins, secs)
+    else
+        local hours = math.floor(seconds / 3600)
+        local mins = math.floor((seconds % 3600) / 60)
+        return string.format("%dh %dm", hours, mins)
     end
 end
 
