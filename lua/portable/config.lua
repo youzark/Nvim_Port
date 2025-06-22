@@ -54,45 +54,170 @@ function M.setup_clipboard()
     -- Don't override if already configured
     if vim.g.clipboard then return end
     
-    -- Smart detection for clipboard strategy
+    -- Robust clipboard strategy detection for complex network scenarios
     local function get_clipboard_strategy()
         local is_docker = os.getenv("container") == "docker" or vim.fn.filereadable("/.dockerenv") == 1
         local is_ssh = os.getenv("SSH_CONNECTION") ~= nil or os.getenv("SSH_CLIENT") ~= nil
         local has_display = os.getenv("DISPLAY") ~= nil and os.getenv("DISPLAY") ~= ""
         
-        -- Test if we can actually use X11 clipboard
-        local x11_works = false
-        if has_display and vim.fn.executable("xclip") == 1 then
-            local result = vim.fn.system("timeout 2s xclip -o -selection clipboard 2>/dev/null")
-            x11_works = vim.v.shell_error == 0
-        end
-        
-        -- Strategy 1: Docker with host X11 forwarding
-        if is_docker and has_display then
-            if x11_works then
-                return "x11_forwarded"  -- Docker can access host X11
-            else
-                return "host_bridge"    -- Need to bridge to host clipboard
+        -- Detect SSH hop depth by counting SSH agent forwards or analyzing DISPLAY
+        local ssh_hop_depth = 0
+        if is_ssh then
+            local display = os.getenv("DISPLAY") or ""
+            -- DISPLAY like localhost:10.0, localhost:11.0 indicates forwarding depth
+            local display_num = display:match("localhost:(%d+)")
+            if display_num then
+                ssh_hop_depth = math.max(1, math.floor(tonumber(display_num) / 10))
+            elseif is_ssh then
+                ssh_hop_depth = 1
             end
         end
         
-        -- Strategy 2: SSH with X11 forwarding (working)
-        if is_ssh and x11_works then
-            return "x11_forwarded"
+        -- Test X11 clipboard with progressive timeout based on network depth
+        local function test_x11_clipboard(timeout)
+            if not has_display or vim.fn.executable("xclip") == 0 then
+                return false
+            end
+            
+            -- Quick test first - if this fails immediately, X11 is broken
+            local quick_test = vim.fn.system("timeout 1s xset q >/dev/null 2>&1")
+            if vim.v.shell_error ~= 0 then
+                return false
+            end
+            
+            -- Test actual clipboard access
+            local result = vim.fn.system(string.format("timeout %ds xclip -o -selection clipboard 2>/dev/null", timeout))
+            return vim.v.shell_error == 0
         end
         
-        -- Strategy 3: Local system with working display
-        if x11_works then
+        -- Progressive timeout based on connection complexity
+        local base_timeout = 2
+        local timeout = base_timeout + (ssh_hop_depth * 2)  -- More time for deeper connections
+        local x11_works = test_x11_clipboard(timeout)
+        
+        -- Strategy selection with robustness priority
+        
+        -- 1. Local system (most reliable)
+        if not is_ssh and not is_docker and x11_works then
             return "local_x11"
         end
         
-        -- Strategy 4: Fallback to internal clipboard
+        -- 2. Direct SSH with working X11 (reliable)
+        if is_ssh and ssh_hop_depth == 1 and x11_works then
+            return "x11_forwarded"
+        end
+        
+        -- 3. Multi-hop SSH with working X11 (fragile but possible)
+        if is_ssh and ssh_hop_depth > 1 and x11_works then
+            return "x11_forwarded_multihop"
+        end
+        
+        -- 4. Docker with X11 access (container-specific handling)
+        if is_docker and x11_works then
+            return "docker_x11"
+        end
+        
+        -- 5. Docker without X11 - try bridge
+        if is_docker and has_display then
+            return "docker_bridge"
+        end
+        
+        -- 6. SSH without working X11 - network clipboard
+        if is_ssh then
+            return "network_clipboard"
+        end
+        
+        -- 7. Fallback to internal clipboard
         return "internal"
     end
     
     local strategy = get_clipboard_strategy()
     
-    if strategy == "host_bridge" then
+    if strategy == "x11_forwarded_multihop" then
+        -- Multi-hop SSH with extra timeout and error handling
+        local timeout = 8  -- Longer timeout for multi-hop
+        vim.g.clipboard = {
+            name = "xclip-multihop",
+            copy = { 
+                ["+"] = string.format("timeout %ds xclip -i -selection clipboard 2>/dev/null || true", timeout),
+                ["*"] = string.format("timeout %ds xclip -i -selection clipboard 2>/dev/null || true", timeout)
+            },
+            paste = { 
+                ["+"] = string.format("timeout %ds xclip -o -selection clipboard 2>/dev/null || echo ''", timeout),
+                ["*"] = string.format("timeout %ds xclip -o -selection clipboard 2>/dev/null || echo ''", timeout)
+            },
+            cache_enabled = false,
+        }
+        return
+    elseif strategy == "network_clipboard" then
+        -- SSH without working X11 - use network-based clipboard via file sharing
+        local network_clipboard_dir = os.getenv("HOME") .. "/.local/share/nvim"
+        vim.fn.system("mkdir -p " .. network_clipboard_dir)
+        local network_clipboard_file = network_clipboard_dir .. "/network_clipboard.txt"
+        
+        vim.g.clipboard = {
+            name = "network-shared",
+            copy = {
+                ["+"] = function(lines)
+                    local content = table.concat(lines, '\n')
+                    local file = io.open(network_clipboard_file, 'w')
+                    if file then
+                        file:write(content)
+                        file:close()
+                        
+                        -- Try to sync with other common clipboard locations
+                        vim.fn.system("cp " .. network_clipboard_file .. " /tmp/nvim_network_clipboard 2>/dev/null || true")
+                        vim.fn.system("cp " .. network_clipboard_file .. " ~/.clipboard 2>/dev/null || true")
+                    end
+                end,
+                ["*"] = function(lines)
+                    local content = table.concat(lines, '\n')
+                    local file = io.open(network_clipboard_file, 'w')
+                    if file then
+                        file:write(content)
+                        file:close()
+                        vim.fn.system("cp " .. network_clipboard_file .. " /tmp/nvim_network_clipboard 2>/dev/null || true")
+                        vim.fn.system("cp " .. network_clipboard_file .. " ~/.clipboard 2>/dev/null || true")
+                    end
+                end
+            },
+            paste = {
+                ["+"] = function()
+                    -- Try multiple clipboard locations
+                    local clipboard_sources = {
+                        network_clipboard_file,
+                        "/tmp/nvim_network_clipboard",
+                        os.getenv("HOME") .. "/.clipboard"
+                    }
+                    
+                    for _, source in ipairs(clipboard_sources) do
+                        local file = io.open(source, 'r')
+                        if file then
+                            local content = file:read('*all')
+                            file:close()
+                            if content and content ~= "" then
+                                return vim.split(content, '\n', {plain = true})
+                            end
+                        end
+                    end
+                    return {}
+                end,
+                ["*"] = function()
+                    local file = io.open(network_clipboard_file, 'r')
+                    if file then
+                        local content = file:read('*all')
+                        file:close()
+                        if content and content ~= "" then
+                            return vim.split(content, '\n', {plain = true})
+                        end
+                    end
+                    return {}
+                end
+            },
+            cache_enabled = false,
+        }
+        return
+    elseif strategy == "docker_bridge" then
         -- Docker without X11 access - try to bridge to host clipboard
         local host_clipboard_file = "/tmp/nvim_clipboard_bridge.txt"
         vim.g.clipboard = {

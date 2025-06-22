@@ -295,28 +295,88 @@ function M.setup()
     
     vim.api.nvim_create_user_command('ClipboardInfo', function()
         local clipboard_name = vim.g.clipboard and vim.g.clipboard.name or "default"
+        print("🔍 CLIPBOARD DIAGNOSTICS")
+        print("=" .. string.rep("=", 50))
         print("Current clipboard: " .. clipboard_name)
         print("Clipboard setting: " .. vim.o.clipboard)
         
-        -- Test clipboard functionality
-        local test_result = "unknown"
-        if vim.fn.executable("xclip") == 1 then
-            local result = vim.fn.system("timeout 2s xclip -o -selection clipboard 2>/dev/null")
-            test_result = vim.v.shell_error == 0 and "working" or "failed"
-        end
-        print("X11 clipboard test: " .. test_result)
+        -- Environment detection
+        local is_docker = os.getenv("container") == "docker" or vim.fn.filereadable("/.dockerenv") == 1
+        local is_ssh = os.getenv("SSH_CONNECTION") ~= nil or os.getenv("SSH_CLIENT") ~= nil
+        local has_display = os.getenv("DISPLAY") ~= nil and os.getenv("DISPLAY") ~= ""
         
-        local env_info = {
-            "DISPLAY: " .. (os.getenv("DISPLAY") or "not set"),
-            "SSH_CONNECTION: " .. (os.getenv("SSH_CONNECTION") or "not set"),
-            "container: " .. (os.getenv("container") or "not set"),
-            "Docker: " .. (vim.fn.filereadable("/.dockerenv") == 1 and "yes" or "no")
+        -- SSH hop detection
+        local ssh_hop_depth = 0
+        if is_ssh then
+            local display = os.getenv("DISPLAY") or ""
+            local display_num = display:match("localhost:(%d+)")
+            if display_num then
+                ssh_hop_depth = math.max(1, math.floor(tonumber(display_num) / 10))
+            elseif is_ssh then
+                ssh_hop_depth = 1
+            end
+        end
+        
+        print("")
+        print("📡 NETWORK TOPOLOGY:")
+        print("SSH connection: " .. (is_ssh and "yes" or "no"))
+        if is_ssh then
+            print("SSH hop depth: " .. ssh_hop_depth .. (ssh_hop_depth > 1 and " (multi-hop)" or " (direct)"))
+        end
+        print("Docker container: " .. (is_docker and "yes" or "no"))
+        print("Display available: " .. (has_display and "yes" or "no"))
+        
+        -- Test clipboard functionality with progressive timeouts
+        print("")
+        print("🧪 CLIPBOARD TESTS:")
+        
+        if vim.fn.executable("xclip") == 1 then
+            -- Quick X11 test
+            local x11_test = vim.fn.system("timeout 1s xset q >/dev/null 2>&1")
+            print("X11 server: " .. (vim.v.shell_error == 0 and "✅ accessible" or "❌ not accessible"))
+            
+            -- Clipboard access test with appropriate timeout
+            local timeout = 2 + (ssh_hop_depth * 2)
+            print("Testing clipboard access (timeout: " .. timeout .. "s)...")
+            local start_time = os.time()
+            local result = vim.fn.system(string.format("timeout %ds xclip -o -selection clipboard 2>/dev/null", timeout))
+            local elapsed = os.time() - start_time
+            local clipboard_test = vim.v.shell_error == 0 and "✅ working" or "❌ failed"
+            print("Clipboard access: " .. clipboard_test .. " (" .. elapsed .. "s)")
+        else
+            print("xclip: ❌ not installed")
+        end
+        
+        print("")
+        print("🌐 ENVIRONMENT VARIABLES:")
+        local env_vars = {
+            {"DISPLAY", os.getenv("DISPLAY")},
+            {"SSH_CONNECTION", os.getenv("SSH_CONNECTION")},
+            {"SSH_CLIENT", os.getenv("SSH_CLIENT")},
+            {"container", os.getenv("container")},
+            {"TERM", os.getenv("TERM")}
         }
         
-        for _, info in ipairs(env_info) do
-            print(info)
+        for _, var in ipairs(env_vars) do
+            local name, value = var[1], var[2]
+            print(string.format("%-15s: %s", name, value or "not set"))
         end
-    end, { desc = 'Show current clipboard configuration and environment' })
+        
+        print("")
+        print("💡 RECOMMENDATIONS:")
+        if ssh_hop_depth > 1 then
+            print("• Multi-hop SSH detected - clipboard may be slow")
+            print("• Consider using 'network_clipboard' mode for better reliability")
+        end
+        if is_docker and not has_display then
+            print("• Docker without X11 - using bridge mode")
+            print("• Run with: docker run -v /tmp:/tmp -e DISPLAY=$DISPLAY")
+        end
+        if is_ssh and not vim.v.shell_error == 0 then
+            print("• SSH X11 forwarding issues detected")
+            print("• Check: ssh -X or ssh -Y flag usage")
+        end
+    end, { desc = 'Show detailed clipboard diagnostics and environment analysis' })
     
     -- Docker clipboard bridge command
     vim.api.nvim_create_user_command('ClipboardSetupDockerBridge', function()

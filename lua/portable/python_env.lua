@@ -15,6 +15,8 @@ M.config = {
     },
     python_packages = {
         "pynvim",
+        "ropevim",
+        "rope",
         "black", 
         "isort",
         "flake8",
@@ -24,7 +26,10 @@ M.config = {
         "ipython",
         "matplotlib",
         "numpy",
-        "pandas"
+        "pandas",
+        "jedi",
+        "autopep8",
+        "yapf"
     }
 }
 
