@@ -199,13 +199,33 @@ function M.setup()
     
     -- Step 4: Configure Python host
     local python_path = M.get_python_path(conda_path)
-    if python_path and vim.g.python3_host_prog ~= python_path then
+    if python_path then
+        -- Set Python host for current session
         vim.g.python3_host_prog = python_path
-        print("✅ Python host configured: " .. python_path)
-    elseif python_path then
-        print("✅ Python host already configured")
+        
+        -- Also ensure it's set early in init for persistence
+        local config_dir = vim.fn.stdpath('config')
+        local python_config_file = config_dir .. '/lua/portable/python_host.lua'
+        
+        -- Create persistent configuration
+        local python_config_content = string.format([[-- Auto-generated Python host configuration
+-- This file is managed by portable/python_env.lua
+vim.g.python3_host_prog = %q
+]], python_path)
+        
+        -- Write the file
+        local file = io.open(python_config_file, 'w')
+        if file then
+            file:write(python_config_content)
+            file:close()
+            print("✅ Python host configured: " .. python_path)
+            print("💾 Configuration saved for persistence")
+        else
+            print("✅ Python host configured: " .. python_path)
+            print("⚠️  Could not save persistent configuration")
+        end
     else
-        print("❌ Failed to configure Python host")
+        print("❌ Failed to get Python path from conda environment")
         return false
     end
     

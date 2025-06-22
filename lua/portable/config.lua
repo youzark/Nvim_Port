@@ -4,7 +4,18 @@ local M = {}
 
 -- Cross-platform Python setup
 function M.setup_python()
-    -- Don't override if already set
+    -- First try to load persistent Python host configuration
+    local config_dir = vim.fn.stdpath('config')
+    local python_config_file = config_dir .. '/lua/portable/python_host.lua'
+    
+    if vim.fn.filereadable(python_config_file) == 1 then
+        local success, err = pcall(dofile, python_config_file)
+        if success and vim.g.python3_host_prog and vim.fn.executable(vim.g.python3_host_prog) == 1 then
+            return  -- Successfully loaded persistent configuration
+        end
+    end
+    
+    -- Don't override if already set and working
     if vim.g.python3_host_prog and vim.fn.executable(vim.g.python3_host_prog) == 1 then
         return
     end
