@@ -54,58 +54,102 @@ function M.setup_clipboard()
     -- Don't override if already configured
     if vim.g.clipboard then return end
     
-    -- Enhanced display detection for nested SSH, Docker, etc.
-    local function has_working_display()
-        -- Check multiple display indicators
-        local display_vars = {
-            os.getenv("DISPLAY"),
-            os.getenv("WAYLAND_DISPLAY"),
-            os.getenv("XDG_SESSION_TYPE")
-        }
+    -- Smart detection for clipboard strategy
+    local function get_clipboard_strategy()
+        local is_docker = os.getenv("container") == "docker" or vim.fn.filereadable("/.dockerenv") == 1
+        local is_ssh = os.getenv("SSH_CONNECTION") ~= nil or os.getenv("SSH_CLIENT") ~= nil
+        local has_display = os.getenv("DISPLAY") ~= nil and os.getenv("DISPLAY") ~= ""
         
-        -- If no display environment variables, definitely no display
-        local has_display_env = false
-        for _, var in ipairs(display_vars) do
-            if var and var ~= "" then
-                has_display_env = true
-                break
+        -- Test if we can actually use X11 clipboard
+        local x11_works = false
+        if has_display and vim.fn.executable("xclip") == 1 then
+            local result = vim.fn.system("timeout 2s xclip -o -selection clipboard 2>/dev/null")
+            x11_works = vim.v.shell_error == 0
+        end
+        
+        -- Strategy 1: Docker with host X11 forwarding
+        if is_docker and has_display then
+            if x11_works then
+                return "x11_forwarded"  -- Docker can access host X11
+            else
+                return "host_bridge"    -- Need to bridge to host clipboard
             end
         end
         
-        if not has_display_env then
-            return false
+        -- Strategy 2: SSH with X11 forwarding (working)
+        if is_ssh and x11_works then
+            return "x11_forwarded"
         end
         
-        -- Test if we can actually access the display
-        if os_type == "linux" then
-            -- Try a simple X11 test that won't hang
-            local result = vim.fn.system("timeout 2s xset q >/dev/null 2>&1")
-            if vim.v.shell_error == 0 then
-                return true
-            end
-            
-            -- Try Wayland test
-            if os.getenv("WAYLAND_DISPLAY") then
-                local result = vim.fn.system("timeout 2s wl-copy --version >/dev/null 2>&1")
-                if vim.v.shell_error == 0 then
-                    return true
+        -- Strategy 3: Local system with working display
+        if x11_works then
+            return "local_x11"
+        end
+        
+        -- Strategy 4: Fallback to internal clipboard
+        return "internal"
+    end
+    
+    local strategy = get_clipboard_strategy()
+    
+    if strategy == "host_bridge" then
+        -- Docker without X11 access - try to bridge to host clipboard
+        local host_clipboard_file = "/tmp/nvim_clipboard_bridge.txt"
+        vim.g.clipboard = {
+            name = "host-bridge",
+            copy = {
+                ["+"] = function(lines)
+                    local content = table.concat(lines, '\n')
+                    -- Try to write to host-accessible location
+                    local file = io.open(host_clipboard_file, 'w')
+                    if file then
+                        file:write(content)
+                        file:close()
+                        -- Try to sync with host clipboard if nsenter is available
+                        vim.fn.system("timeout 3s nsenter -t 1 -m -p xclip -i -selection clipboard < " .. host_clipboard_file .. " 2>/dev/null || true")
+                    end
+                end,
+                ["*"] = function(lines)
+                    local content = table.concat(lines, '\n')
+                    local file = io.open(host_clipboard_file, 'w')
+                    if file then
+                        file:write(content)
+                        file:close()
+                        vim.fn.system("timeout 3s nsenter -t 1 -m -p xclip -i -selection clipboard < " .. host_clipboard_file .. " 2>/dev/null || true")
+                    end
                 end
-            end
-        end
-        
-        return false
-    end
-    
-    -- Check if we're in Docker, nested SSH, or other isolated environment
-    local function is_isolated_environment()
-        return (os.getenv("container") == "docker") or
-               (vim.fn.filereadable("/.dockerenv") == 1) or
-               (os.getenv("SSH_TTY") and not has_working_display()) or
-               (os.getenv("SSH_CONNECTION") and not has_working_display())
-    end
-    
-    -- Use internal clipboard for isolated environments
-    if is_isolated_environment() or (env.is_remote and not has_working_display()) then
+            },
+            paste = {
+                ["+"] = function()
+                    -- Try to get from host clipboard first
+                    vim.fn.system("timeout 3s nsenter -t 1 -m -p xclip -o -selection clipboard > " .. host_clipboard_file .. " 2>/dev/null || true")
+                    local file = io.open(host_clipboard_file, 'r')
+                    if file then
+                        local content = file:read('*all')
+                        file:close()
+                        if content and content ~= "" then
+                            return vim.split(content, '\n', {plain = true})
+                        end
+                    end
+                    return {}
+                end,
+                ["*"] = function()
+                    vim.fn.system("timeout 3s nsenter -t 1 -m -p xclip -o -selection clipboard > " .. host_clipboard_file .. " 2>/dev/null || true")
+                    local file = io.open(host_clipboard_file, 'r')
+                    if file then
+                        local content = file:read('*all')
+                        file:close()
+                        if content and content ~= "" then
+                            return vim.split(content, '\n', {plain = true})
+                        end
+                    end
+                    return {}
+                end
+            },
+            cache_enabled = false,
+        }
+        return
+    elseif strategy == "internal" then
         -- Use internal clipboard that works across nvim sessions via temp file
         local tmp_file = vim.fn.stdpath('cache') .. '/clipboard.txt'
         vim.g.clipboard = {

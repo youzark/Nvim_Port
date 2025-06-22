@@ -245,6 +245,139 @@ function M.setup()
         desc = 'Install packages for specific tool'
     })
     
+    -- Clipboard management commands
+    vim.api.nvim_create_user_command('ClipboardForceInternal', function()
+        local tmp_file = vim.fn.stdpath('cache') .. '/clipboard.txt'
+        vim.g.clipboard = {
+            name = "internal-file-forced",
+            copy = {
+                ["+"] = function(lines) 
+                    local file = io.open(tmp_file, 'w')
+                    if file then
+                        file:write(table.concat(lines, '\n'))
+                        file:close()
+                        print("Copied to internal clipboard")
+                    end
+                end,
+                ["*"] = function(lines)
+                    local file = io.open(tmp_file, 'w')
+                    if file then
+                        file:write(table.concat(lines, '\n'))
+                        file:close()
+                        print("Copied to internal clipboard")
+                    end
+                end
+            },
+            paste = {
+                ["+"] = function()
+                    local file = io.open(tmp_file, 'r')
+                    if file then
+                        local content = file:read('*all')
+                        file:close()
+                        return vim.split(content, '\n', {plain = true})
+                    end
+                    return {}
+                end,
+                ["*"] = function()
+                    local file = io.open(tmp_file, 'r')
+                    if file then
+                        local content = file:read('*all')
+                        file:close()
+                        return vim.split(content, '\n', {plain = true})
+                    end
+                    return {}
+                end
+            },
+            cache_enabled = false,
+        }
+        print("Forced internal clipboard mode (no system clipboard errors)")
+    end, { desc = 'Force internal clipboard to avoid display errors' })
+    
+    vim.api.nvim_create_user_command('ClipboardInfo', function()
+        local clipboard_name = vim.g.clipboard and vim.g.clipboard.name or "default"
+        print("Current clipboard: " .. clipboard_name)
+        print("Clipboard setting: " .. vim.o.clipboard)
+        
+        -- Test clipboard functionality
+        local test_result = "unknown"
+        if vim.fn.executable("xclip") == 1 then
+            local result = vim.fn.system("timeout 2s xclip -o -selection clipboard 2>/dev/null")
+            test_result = vim.v.shell_error == 0 and "working" or "failed"
+        end
+        print("X11 clipboard test: " .. test_result)
+        
+        local env_info = {
+            "DISPLAY: " .. (os.getenv("DISPLAY") or "not set"),
+            "SSH_CONNECTION: " .. (os.getenv("SSH_CONNECTION") or "not set"),
+            "container: " .. (os.getenv("container") or "not set"),
+            "Docker: " .. (vim.fn.filereadable("/.dockerenv") == 1 and "yes" or "no")
+        }
+        
+        for _, info in ipairs(env_info) do
+            print(info)
+        end
+    end, { desc = 'Show current clipboard configuration and environment' })
+    
+    -- Docker clipboard bridge command
+    vim.api.nvim_create_user_command('ClipboardSetupDockerBridge', function()
+        print("Setting up Docker clipboard bridge...")
+        print("This requires running Docker with: -v /tmp:/tmp")
+        print("And host must have xclip installed with X11 forwarding")
+        
+        local bridge_file = "/tmp/nvim_docker_clipboard"
+        vim.g.clipboard = {
+            name = "docker-bridge-manual",
+            copy = {
+                ["+"] = function(lines)
+                    local content = table.concat(lines, '\n')
+                    local file = io.open(bridge_file, 'w')
+                    if file then
+                        file:write(content)
+                        file:close()
+                        print("Copied to bridge file: " .. bridge_file)
+                        print("Run on host: xclip -i -selection clipboard < " .. bridge_file)
+                    end
+                end,
+                ["*"] = function(lines)
+                    local content = table.concat(lines, '\n')
+                    local file = io.open(bridge_file, 'w')
+                    if file then
+                        file:write(content)
+                        file:close()
+                        print("Copied to bridge file: " .. bridge_file)
+                    end
+                end
+            },
+            paste = {
+                ["+"] = function()
+                    print("Run on host first: xclip -o -selection clipboard > " .. bridge_file)
+                    local file = io.open(bridge_file, 'r')
+                    if file then
+                        local content = file:read('*all')
+                        file:close()
+                        if content and content ~= "" then
+                            return vim.split(content, '\n', {plain = true})
+                        end
+                    end
+                    return {}
+                end,
+                ["*"] = function()
+                    local file = io.open(bridge_file, 'r')
+                    if file then
+                        local content = file:read('*all')
+                        file:close()
+                        if content and content ~= "" then
+                            return vim.split(content, '\n', {plain = true})
+                        end
+                    end
+                    return {}
+                end
+            },
+            cache_enabled = false,
+        }
+        print("Docker clipboard bridge enabled")
+    end, { desc = 'Setup manual Docker clipboard bridge via shared /tmp' })
+    
     -- Quick setup commands
     vim.api.nvim_create_user_command('QuickSetup', function(opts)
         local preset = opts.args or "essentials"
