@@ -19,18 +19,41 @@ end
 
 -- Function to get Python path intelligently
 local function get_python_path()
-    -- 1. Use bootup system if already configured
+    -- 1. Check for portable system's persistent Python configuration first
+    local config_dir = vim.fn.stdpath('config')
+    local python_config_file = config_dir .. '/lua/portable/python_host.lua'
+    
+    if vim.fn.filereadable(python_config_file) == 1 then
+        local success, err = pcall(dofile, python_config_file)
+        if success and vim.g.python3_host_prog and vim.fn.executable(vim.g.python3_host_prog) == 1 then
+            return vim.g.python3_host_prog
+        end
+    end
+    
+    -- 2. Use bootup system if already configured
     if vim.g.python3_host_prog and vim.fn.executable(vim.g.python3_host_prog) == 1 then
         return vim.g.python3_host_prog
     end
     
-    -- 2. Check if old hardcoded path still exists
+    -- 3. Try portable system's conda environment
+    local success, python_env = pcall(require, 'portable.python_env')
+    if success then
+        local conda_path = python_env.detect_conda()
+        if conda_path and python_env.env_exists(conda_path) then
+            local nvim_python = python_env.get_python_path(conda_path)
+            if nvim_python and vim.fn.executable(nvim_python) == 1 then
+                return nvim_python
+            end
+        end
+    end
+    
+    -- 4. Check if old hardcoded path still exists
     local old_path = "/apdcephfs_nj7/share_1273717/yannhua/Home/.local/ml/bin/python3"
     if vim.fn.executable(old_path) == 1 then
         return old_path
     end
     
-    -- 3. Fall back to system python
+    -- 5. Fall back to system python
     return get_binary_or_default({"python3", "python"}, "python3")
 end
 
