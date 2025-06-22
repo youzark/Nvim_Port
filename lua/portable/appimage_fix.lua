@@ -36,6 +36,36 @@ function M.fix_vimruntime()
     return true
 end
 
+-- Fix VIMRUNTIME silently (for startup)
+function M.fix_vimruntime_silent()
+    local vimruntime = vim.env.VIMRUNTIME
+    
+    -- Check if VIMRUNTIME contains AppImage squashfs path issues
+    if vimruntime and (vimruntime:match("squashfs%-root") or vimruntime:match("/tmp/%.mount_")) then
+        -- Try to find the correct runtime path
+        local nvim_executable = vim.v.progpath
+        if nvim_executable then
+            -- For AppImage, try to find the embedded runtime
+            local potential_paths = {
+                nvim_executable:gsub("/bin/nvim$", "/share/nvim/runtime"),
+                nvim_executable:gsub("/nvim$", "/../share/nvim/runtime"),
+                "/usr/share/nvim/runtime",
+                "/usr/local/share/nvim/runtime"
+            }
+            
+            for _, path in ipairs(potential_paths) do
+                if vim.fn.isdirectory(path) == 1 then
+                    vim.env.VIMRUNTIME = path
+                    return true
+                end
+            end
+        end
+        return false
+    end
+    
+    return true
+end
+
 -- Fix health check functions for older nvim versions
 function M.fix_health_functions()
     -- Check if we're missing health functions
@@ -150,6 +180,26 @@ function M.apply_fixes()
     else
         print("[APPIMAGE-FIX] ⚠️  Some fixes failed, functionality may be limited")
     end
+    
+    return fixes_applied > 0
+end
+
+-- Apply fixes silently (for startup)
+function M.apply_fixes_silent()
+    if not M.is_appimage() then
+        return true
+    end
+    
+    local fixes_applied = 0
+    
+    -- Fix VIMRUNTIME (silent)
+    if M.fix_vimruntime_silent() then
+        fixes_applied = fixes_applied + 1
+    end
+    
+    -- Fix health functions (silent)
+    M.fix_health_functions()
+    fixes_applied = fixes_applied + 1
     
     return fixes_applied > 0
 end
