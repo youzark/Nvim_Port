@@ -143,7 +143,7 @@ end
 function M.install_tool(tool_name)
     local tool = M.tools[tool_name]
     if not tool then
-        print("[TOOL-MANAGER] Unknown tool: " .. tool_name)
+        print("[TOOL-MANAGER] ❌ Unknown tool: " .. tool_name)
         return false
     end
     
@@ -151,27 +151,45 @@ function M.install_tool(tool_name)
     local install_cmd = tool.install_cmds[pkg_manager]
     
     if not install_cmd then
-        print("[TOOL-MANAGER] No installation command for " .. tool_name .. " on " .. pkg_manager)
+        print("[TOOL-MANAGER] ❌ No installation command for " .. tool_name .. " on " .. pkg_manager)
         return false
     end
     
     print("[TOOL-MANAGER] Installing " .. tool_name .. "...")
+    print("═" .. string.rep("═", 50))
+    print("🛠️  Tool Details:")
+    print("   📦 Tool: " .. tool_name)
+    print("   🔧 Package Manager: " .. pkg_manager)
+    print("   💻 Command: " .. install_cmd)
+    print("")
+    
+    print("🔄 Installing " .. tool_name .. "... (please wait)")
+    local start_time = os.time()
     local result = vim.fn.system(install_cmd)
+    local elapsed = os.time() - start_time
     
     if vim.v.shell_error == 0 then
-        print("[TOOL-MANAGER] " .. tool_name .. " installed successfully")
+        print(string.format("✅ %s installed successfully in %d seconds", tool_name, elapsed))
         
         -- Run post-install setup if available
         if tool.post_install then
+            print("🔧 Running post-install setup...")
             tool.post_install()
+            print("✅ Post-install setup completed")
         end
         if tool.config_setup then
+            print("⚙️  Setting up configuration...")
             tool.config_setup()
+            print("✅ Configuration setup completed")
         end
         
+        print("═" .. string.rep("═", 50))
         return true
     else
-        print("[TOOL-MANAGER] Failed to install " .. tool_name .. ": " .. result)
+        print("❌ Failed to install " .. tool_name .. ":")
+        print("   Error: " .. result:gsub("\n", "\n   "))
+        print("   Duration: " .. elapsed .. " seconds")
+        print("═" .. string.rep("═", 50))
         return false
     end
 end
@@ -180,7 +198,7 @@ end
 function M.install_packages(tool_name)
     local tool = M.tools[tool_name]
     if not tool or not tool.packages then
-        print("[TOOL-MANAGER] No packages defined for " .. tool_name)
+        print("[TOOL-MANAGER] ❌ No packages defined for " .. tool_name)
         return false
     end
     
@@ -192,9 +210,25 @@ function M.install_packages(tool_name)
     end
     
     print("[TOOL-MANAGER] Installing " .. tool_name .. " packages...")
+    print("═" .. string.rep("═", 50))
     
-    local success = true
-    for _, package in ipairs(tool.packages) do
+    -- Show package list
+    print("📦 Packages to install for " .. tool_name .. ":")
+    for i, pkg in ipairs(tool.packages) do
+        print(string.format("  %d. %s", i, pkg))
+    end
+    print("")
+    
+    local total = #tool.packages
+    local success_count = 0
+    local failed_packages = {}
+    
+    for i, package in ipairs(tool.packages) do
+        -- Progress indicator
+        local progress = math.floor((i - 1) / total * 20)
+        local bar = "█" .. string.rep("█", progress) .. string.rep("░", 20 - progress)
+        local percent = math.floor((i - 1) / total * 100)
+        
         local cmd = ""
         if tool_name == "npm" then
             cmd = "npm install -g " .. package
@@ -203,16 +237,50 @@ function M.install_packages(tool_name)
         end
         
         if cmd ~= "" then
-            print("[TOOL-MANAGER] Installing " .. package .. "...")
+            print(string.format("🔄 [%s] %d%% Installing %s...", bar, percent, package))
+            
+            local start_time = os.time()
             local result = vim.fn.system(cmd)
-            if vim.v.shell_error ~= 0 then
-                print("[TOOL-MANAGER] Failed to install " .. package .. ": " .. result)
-                success = false
+            local elapsed = os.time() - start_time
+            
+            if vim.v.shell_error == 0 then
+                print(string.format("✅ %s installed successfully (%ds)", package, elapsed))
+                success_count = success_count + 1
+            else
+                print(string.format("❌ Failed to install %s (%ds): %s", package, elapsed, result:gsub("\n", " ")))
+                table.insert(failed_packages, package)
             end
+            
+            -- Visual feedback
+            vim.cmd("redraw")
+            os.execute("sleep 0.3")
         end
     end
     
-    return success
+    -- Final progress bar
+    local final_progress = "█" .. string.rep("█", 20)
+    print(string.format("🎯 [%s] 100%% Package installation completed!", final_progress))
+    print("═" .. string.rep("═", 50))
+    
+    -- Summary
+    print(string.format("📊 Package Installation Summary for %s:", tool_name))
+    print(string.format("  ✅ Successful: %d/%d packages", success_count, total))
+    print(string.format("  ❌ Failed: %d/%d packages", #failed_packages, total))
+    
+    if #failed_packages > 0 then
+        print("  📋 Failed packages:")
+        for _, pkg in ipairs(failed_packages) do
+            print("    • " .. pkg)
+        end
+        print("  💡 Try installing failed packages manually with:")
+        if tool_name == "npm" then
+            print("     npm install -g " .. table.concat(failed_packages, " "))
+        elseif tool_name == "luarocks" then
+            print("     luarocks install " .. table.concat(failed_packages, " "))
+        end
+    end
+    
+    return success_count == total
 end
 
 -- Check status of all tools
@@ -241,23 +309,71 @@ function M.install_essentials()
     local essential_tools = {"npm", "luarocks", "ripgrep", "fd", "fzf", "ranger"}
     
     print("[TOOL-MANAGER] Installing essential tools...")
-    local success = true
+    print("═" .. string.rep("═", 60))
+    print("🎯 Essential Tools Installation Plan:")
+    for i, tool in ipairs(essential_tools) do
+        local status = M.is_installed(tool) and "✅ Already installed" or "📥 Will install"
+        print(string.format("  %d. %s - %s", i, tool, status))
+    end
+    print("")
     
-    for _, tool in ipairs(essential_tools) do
+    local total_tools = #essential_tools
+    local installed_count = 0
+    local failed_tools = {}
+    
+    -- Install each tool
+    for i, tool in ipairs(essential_tools) do
+        local progress = math.floor((i - 1) / total_tools * 20)
+        local bar = "█" .. string.rep("█", progress) .. string.rep("░", 20 - progress)
+        local percent = math.floor((i - 1) / total_tools * 100)
+        
+        print(string.format("🔄 [%s] %d%% Processing %s...", bar, percent, tool))
+        
         if not M.is_installed(tool) then
-            if not M.install_tool(tool) then
-                success = false
+            if M.install_tool(tool) then
+                installed_count = installed_count + 1
+            else
+                table.insert(failed_tools, tool)
             end
         else
-            print("[TOOL-MANAGER] " .. tool .. " already installed")
+            print("✅ " .. tool .. " already installed")
+            installed_count = installed_count + 1
+        end
+        
+        vim.cmd("redraw")
+        os.execute("sleep 0.5")
+    end
+    
+    -- Final progress
+    local final_progress = "█" .. string.rep("█", 20)
+    print(string.format("🎯 [%s] 100%% Tool installation phase completed!", final_progress))
+    print("")
+    
+    -- Install packages for npm and luarocks if they're available
+    if M.is_installed("npm") then
+        print("📦 Installing NPM packages...")
+        M.install_packages("npm")
+    end
+    
+    if M.is_installed("luarocks") then
+        print("📦 Installing Luarocks packages...")
+        M.install_packages("luarocks")
+    end
+    
+    -- Final summary
+    print("═" .. string.rep("═", 60))
+    print("📊 Essential Tools Installation Summary:")
+    print(string.format("  ✅ Successfully installed: %d/%d tools", installed_count, total_tools))
+    print(string.format("  ❌ Failed: %d/%d tools", #failed_tools, total_tools))
+    
+    if #failed_tools > 0 then
+        print("  📋 Failed tools:")
+        for _, tool in ipairs(failed_tools) do
+            print("    • " .. tool)
         end
     end
     
-    -- Install packages for npm and luarocks
-    M.install_packages("npm")
-    M.install_packages("luarocks")
-    
-    return success
+    return #failed_tools == 0
 end
 
 -- Quick setup for specific use cases

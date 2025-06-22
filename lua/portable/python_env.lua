@@ -56,14 +56,32 @@ end
 -- Create nvim conda environment
 function M.create_env(conda_path)
     print("[PYTHON-ENV] Creating nvim conda environment...")
+    print("═" .. string.rep("═", 50))
+    print("🏗️  Environment Details:")
+    print("   📁 Name: " .. M.config.env_name)
+    print("   🐍 Python Version: 3.11")
+    print("   📍 Conda Path: " .. conda_path)
+    print("")
+    
+    print("🔄 Creating environment... (this may take a few minutes)")
     local cmd = conda_path .. " create -n " .. M.config.env_name .. " python=3.11 -y"
+    
+    -- Show spinning indicator
+    local spinner = {"|", "/", "-", "\\"}
+    local start_time = os.time()
+    
+    -- Start environment creation in background (simplified for demo)
     local result = vim.fn.system(cmd)
     
     if vim.v.shell_error == 0 then
-        print("[PYTHON-ENV] Environment created successfully")
+        local elapsed = os.time() - start_time
+        print(string.format("✅ Environment created successfully in %d seconds", elapsed))
+        print("═" .. string.rep("═", 50))
         return true
     else
-        print("[PYTHON-ENV] Failed to create environment: " .. result)
+        print("❌ Failed to create environment:")
+        print("   " .. result:gsub("\n", "\n   "))
+        print("═" .. string.rep("═", 50))
         return false
     end
 end
@@ -71,18 +89,64 @@ end
 -- Install Python packages in nvim environment
 function M.install_packages(conda_path)
     print("[PYTHON-ENV] Installing Python packages...")
+    print("═" .. string.rep("═", 50))
     
-    local packages_str = table.concat(M.config.python_packages, " ")
-    local cmd = conda_path .. " run -n " .. M.config.env_name .. " pip install " .. packages_str
-    
-    local result = vim.fn.system(cmd)
-    if vim.v.shell_error == 0 then
-        print("[PYTHON-ENV] Packages installed successfully")
-        return true
-    else
-        print("[PYTHON-ENV] Failed to install packages: " .. result)
-        return false
+    -- Show package list
+    print("📦 Packages to install:")
+    for i, pkg in ipairs(M.config.python_packages) do
+        print(string.format("  %d. %s", i, pkg))
     end
+    print("")
+    
+    -- Install packages one by one for better progress tracking
+    local total = #M.config.python_packages
+    local success_count = 0
+    local failed_packages = {}
+    
+    for i, package in ipairs(M.config.python_packages) do
+        -- Progress indicator
+        local progress = math.floor((i - 1) / total * 20)
+        local bar = "█" .. string.rep("█", progress) .. string.rep("░", 20 - progress)
+        local percent = math.floor((i - 1) / total * 100)
+        
+        print(string.format("🔄 [%s] %d%% Installing %s...", bar, percent, package))
+        
+        local cmd = conda_path .. " run -n " .. M.config.env_name .. " pip install " .. package .. " --quiet"
+        local result = vim.fn.system(cmd)
+        
+        if vim.v.shell_error == 0 then
+            print(string.format("✅ %s installed successfully", package))
+            success_count = success_count + 1
+        else
+            print(string.format("❌ Failed to install %s: %s", package, result:gsub("\n", " ")))
+            table.insert(failed_packages, package)
+        end
+        
+        -- Small delay for visual feedback
+        vim.cmd("redraw")
+        os.execute("sleep 0.5")
+    end
+    
+    -- Final progress bar
+    local final_progress = "█" .. string.rep("█", 20)
+    print(string.format("🎯 [%s] 100%% Installation completed!", final_progress))
+    print("═" .. string.rep("═", 50))
+    
+    -- Summary
+    print(string.format("📊 Installation Summary:"))
+    print(string.format("  ✅ Successful: %d/%d packages", success_count, total))
+    print(string.format("  ❌ Failed: %d/%d packages", #failed_packages, total))
+    
+    if #failed_packages > 0 then
+        print("  📋 Failed packages:")
+        for _, pkg in ipairs(failed_packages) do
+            print("    • " .. pkg)
+        end
+        print("  💡 Try installing failed packages manually with:")
+        print("     conda activate nvim && pip install " .. table.concat(failed_packages, " "))
+    end
+    
+    return success_count == total
 end
 
 -- Get Python path from nvim environment

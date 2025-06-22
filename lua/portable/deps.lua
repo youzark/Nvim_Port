@@ -59,18 +59,68 @@ function M.install(category)
     local pkg_manager = detect.package_manager()
     
     if pkg_manager == "manual" then
-        print("[PORTABLE] No package manager detected. Please install dependencies manually.")
+        print("[PORTABLE] ❌ No package manager detected. Please install dependencies manually.")
         return false
     end
     
     local cmd = M.install_commands[category] and M.install_commands[category][pkg_manager]
-    if cmd then
-        print("[PORTABLE] Installing " .. category .. " dependencies...")
-        vim.fn.system(cmd)
-        print("[PORTABLE] Installation completed")
+    if not cmd then
+        print("[PORTABLE] ❌ No installation command for " .. category .. " on " .. pkg_manager)
+        return false
+    end
+    
+    print("[PORTABLE] Installing " .. category .. " dependencies...")
+    print("═" .. string.rep("═", 50))
+    print("📦 Dependency Installation Details:")
+    print("   🏷️  Category: " .. category)
+    print("   🔧 Package Manager: " .. pkg_manager)
+    print("   📋 Dependencies: " .. table.concat(M.dependencies[category] or {}, ", "))
+    print("   💻 Command: " .. cmd)
+    print("")
+    
+    print("🔄 Installing dependencies... (this may take several minutes)")
+    local start_time = os.time()
+    local result = vim.fn.system(cmd)
+    local elapsed = os.time() - start_time
+    
+    if vim.v.shell_error == 0 then
+        print(string.format("✅ %s dependencies installed successfully in %d seconds", category, elapsed))
+        
+        -- Verify installation
+        print("🔍 Verifying installation...")
+        local deps_list = M.dependencies[category] or {}
+        local verified = 0
+        local failed = {}
+        
+        for _, dep in ipairs(deps_list) do
+            if vim.fn.executable(dep) == 1 then
+                print("  ✅ " .. dep .. " - available")
+                verified = verified + 1
+            else
+                print("  ❌ " .. dep .. " - not found")
+                table.insert(failed, dep)
+            end
+        end
+        
+        print("═" .. string.rep("═", 50))
+        print("📊 Installation Verification:")
+        print(string.format("  ✅ Available: %d/%d dependencies", verified, #deps_list))
+        print(string.format("  ❌ Missing: %d/%d dependencies", #failed, #deps_list))
+        
+        if #failed > 0 then
+            print("  📋 Missing dependencies:")
+            for _, dep in ipairs(failed) do
+                print("    • " .. dep)
+            end
+            print("  💡 Some dependencies may need manual installation or PATH configuration")
+        end
+        
         return true
     else
-        print("[PORTABLE] No installation command for " .. category .. " on " .. pkg_manager)
+        print("❌ Failed to install " .. category .. " dependencies:")
+        print("   Error: " .. result:gsub("\n", "\n   "))
+        print("   Duration: " .. elapsed .. " seconds")
+        print("═" .. string.rep("═", 50))
         return false
     end
 end
